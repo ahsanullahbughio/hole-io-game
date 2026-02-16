@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Saudi Catch Game</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #1a0a2e;
+    overflow: hidden;
+    font-family: 'Segoe UI', Tahoma, sans-serif;
+    user-select: none;
+  }
+
+  canvas {
+    display: block;
+    margin: 0 auto;
+  }
+
+  #startScreen, #gameOverScreen {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(10, 5, 30, 0.92);
+    z-index: 10;
+    color: #f0e6d3;
+    text-align: center;
+  }
+
+  #gameOverScreen { display: none; }
+
+  h1 {
+    font-size: 3rem;
+    color: #d4a843;
+    margin-bottom: 0.3em;
+    text-shadow: 0 0 20px rgba(212, 168, 67, 0.5);
+  }
+
+  .subtitle {
+    font-size: 1.2rem;
+    color: #c4a882;
+    margin-bottom: 2em;
+  }
+
+  .btn {
+    padding: 16px 48px;
+    font-size: 1.4rem;
+    background: linear-gradient(135deg, #2d7a3a, #1b5e27);
+    color: #fff;
+    border: 2px solid #4caf50;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+    font-family: inherit;
+  }
+
+  .btn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 25px rgba(76, 175, 80, 0.5);
+  }
+
+  .instructions {
+    margin-top: 1.5em;
+    font-size: 0.95rem;
+    color: #998877;
+    line-height: 1.8;
+  }
+
+  .instructions span {
+    color: #d4a843;
+  }
+
+  #finalScore {
+    font-size: 4rem;
+    color: #d4a843;
+    margin: 0.3em 0;
+  }
+</style>
+</head>
+<body>
+
+<canvas id="gameCanvas"></canvas>
+
+<div id="startScreen">
+  <h1>Saudi Catch</h1>
+  <div class="subtitle">Catch the falling Saudi treasures!</div>
+  <button class="btn" id="startBtn">Play</button>
+  <div class="instructions">
+    Arrow keys or A/D to move the basket<br>
+    <span>Spacebar</span> to fire when you have 🔥 power-up<br>
+    Catch items to score points<br>
+    Grab <span>🔥 Fireball</span> to blast items from below!<br>
+    Grab <span>💚 Extra Life</span> to recover a lost heart<br>
+    Miss 3 items and it's game over!
+  </div>
+</div>
+
+<div id="gameOverScreen">
+  <h1>Game Over</h1>
+  <div class="subtitle">Your score</div>
+  <div id="finalScore">0</div>
+  <button class="btn" id="restartBtn">Play Again</button>
+</div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+// --- Sizing ---
+function resize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// --- Game state ---
+let score, misses, maxLives, items, basket, gameRunning, spawnTimer, difficulty;
+let bonusSpawnTimer, fireballs, fireCharges, fireReady;
+
+const BASKET_W = 100;
+const BASKET_H = 70;
+const ITEM_SIZE = 40;
+
+// --- Screen Shake ---
+let shakeIntensity = 0;
+let shakeDuration = 0;
+let shakeOffsetX = 0;
+let shakeOffsetY = 0;
+
+function triggerShake(intensity, duration) {
+  shakeIntensity = intensity;
+  shakeDuration = duration;
+}
+
+function updateShake(dt) {
+  if (shakeDuration > 0) {
+    shakeDuration -= dt;
+    shakeOffsetX = (Math.random() - 0.5) * 2 * shakeIntensity;
+    shakeOffsetY = (Math.random() - 0.5) * 2 * shakeIntensity;
+    // Decay intensity
+    shakeIntensity *= 0.92;
+  } else {
+    shakeOffsetX = 0;
+    shakeOffsetY = 0;
+    shakeIntensity = 0;
+  }
+}
+
+// --- Flash overlay on miss ---
+let flashAlpha = 0;
+
+const ITEM_TYPES = [
+  { emoji: '🌴', label: 'تمر',   color: '#8B4513', type: 'item' },
+  { emoji: '🍪', label: 'كليجة', color: '#D2691E', type: 'item' },
+  { emoji: '⚔️', label: 'سيف',   color: '#C0C0C0', type: 'item' },
+  { emoji: '☕', label: 'دلة',   color: '#DAA520', type: 'item' },
+];
+
+const BONUS_TYPES = [
+  { emoji: '🔥', label: 'نار!',      color: '#FF4500', type: 'fire',      glow: '#ff6600' },
+  { emoji: '💚', label: 'حياة إضافية', color: '#00FF7F', type: 'extralife', glow: '#00ff88' },
+];
+
+// --- Input ---
+const keys = {};
+const keysJustPressed = {};
+window.addEventListener('keydown', e => {
+  if (!keys[e.key]) keysJustPressed[e.key] = true;
+  keys[e.key] = true;
+  e.preventDefault();
+});
+window.addEventListener('keyup', e => { keys[e.key] = false; });
+
+// --- Draw helpers ---
+function drawBasket(x, y) {
+  ctx.save();
+
+  // Glow when fire charges available
+  if (fireCharges > 0) {
+    ctx.shadowColor = '#ff6600';
+    ctx.shadowBlur = 15 + Math.sin(Date.now() * 0.008) * 8;
+  }
+
+  ctx.beginPath();
+  ctx.moveTo(x - BASKET_W / 2 + 10, y);
+  ctx.lineTo(x - BASKET_W / 2 - 5, y + BASKET_H);
+  ctx.lineTo(x + BASKET_W / 2 + 5, y + BASKET_H);
+  ctx.lineTo(x + BASKET_W / 2 - 10, y);
+  ctx.closePath();
+  const grad = ctx.createLinearGradient(x, y, x, y + BASKET_H);
+  if (fireCharges > 0) {
+    grad.addColorStop(0, '#e8943a');
+    grad.addColorStop(1, '#b85a10');
+  } else {
+    grad.addColorStop(0, '#c49a6c');
+    grad.addColorStop(1, '#8B6914');
+  }
+  ctx.fillStyle = grad;
+  ctx.fill();
+  ctx.strokeStyle = fireCharges > 0 ? '#ff8800' : '#6b4c1e';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // Weave lines
+  ctx.strokeStyle = fireCharges > 0 ? 'rgba(255,136,0,0.4)' : 'rgba(107, 76, 30, 0.4)';
+  ctx.lineWidth = 1;
+  for (let i = 1; i < 4; i++) {
+    const ly = y + (BASKET_H / 4) * i;
+    ctx.beginPath();
+    ctx.moveTo(x - BASKET_W / 2 - 5 + (i * 3), ly);
+    ctx.lineTo(x + BASKET_W / 2 + 5 - (i * 3), ly);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawItem(item) {
+  ctx.save();
+  // Bonus items get a pulsing glow
+  if (item.glow) {
+    ctx.shadowColor = item.glow;
+    ctx.shadowBlur = 12 + Math.sin(Date.now() * 0.006 + item.x) * 6;
+  }
+  ctx.font = `${ITEM_SIZE}px serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(item.emoji, item.x, item.y);
+  ctx.restore();
+}
+
+function drawFireball(fb) {
+  ctx.save();
+  ctx.shadowColor = '#ff4400';
+  ctx.shadowBlur = 18;
+  ctx.font = '30px serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('🔥', fb.x, fb.y);
+  ctx.restore();
+
+  // Trail particles
+  for (let i = 0; i < 2; i++) {
+    particles.push({
+      x: fb.x + (Math.random() - 0.5) * 10,
+      y: fb.y + 10,
+      vx: (Math.random() - 0.5) * 2,
+      vy: Math.random() * 2 + 1,
+      life: 0.4,
+      color: Math.random() > 0.5 ? '#ff6600' : '#ffaa00',
+      size: Math.random() * 3 + 1,
+    });
+  }
+}
+
+function drawHUD() {
+  ctx.save();
+  ctx.font = 'bold 28px Segoe UI, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillStyle = '#d4a843';
+  ctx.shadowColor = 'rgba(0,0,0,0.6)';
+  ctx.shadowBlur = 6;
+  ctx.fillText(`Score: ${score}`, 20, 20);
+
+  // Hearts
+  ctx.textAlign = 'right';
+  let hearts = '';
+  for (let i = 0; i < maxLives; i++) {
+    hearts += i < (maxLives - misses) ? '❤️ ' : '🖤 ';
+  }
+  ctx.font = '26px serif';
+  ctx.fillText(hearts, canvas.width - 20, 20);
+
+  // Fire charges indicator
+  if (fireCharges > 0) {
+    ctx.textAlign = 'left';
+    ctx.font = 'bold 22px Segoe UI, sans-serif';
+    ctx.fillStyle = '#ff6600';
+    ctx.shadowColor = 'rgba(255,100,0,0.5)';
+    ctx.shadowBlur = 8;
+    let fireText = '🔥 x' + fireCharges + '  [SPACE to fire]';
+    ctx.fillText(fireText, 20, 55);
+  }
+
+  ctx.restore();
+}
+
+function drawBackground() {
+  const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+  grad.addColorStop(0, '#0d0221');
+  grad.addColorStop(0.5, '#1a0a3e');
+  grad.addColorStop(1, '#2d1b69');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Stars
+  ctx.fillStyle = '#ffffff';
+  for (let i = 0; i < 60; i++) {
+    const sx = (Math.sin(i * 1234.5) * 0.5 + 0.5) * canvas.width;
+    const sy = (Math.cos(i * 6789.1) * 0.5 + 0.5) * canvas.height * 0.6;
+    const sr = 0.5 + Math.sin(Date.now() * 0.002 + i) * 0.5;
+    ctx.globalAlpha = 0.3 + sr * 0.5;
+    ctx.beginPath();
+    ctx.arc(sx, sy, sr + 0.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  // Sand dunes
+  ctx.fillStyle = '#3d2b1f';
+  ctx.beginPath();
+  ctx.moveTo(0, canvas.height);
+  for (let x = 0; x <= canvas.width; x += 10) {
+    ctx.lineTo(x, canvas.height - 20 - Math.sin(x * 0.008) * 15 - Math.sin(x * 0.003) * 10);
+  }
+  ctx.lineTo(canvas.width, canvas.height);
+  ctx.closePath();
+  ctx.fill();
+}
+
+// --- Particles ---
+let particles = [];
+
+function spawnParticles(x, y, color, count = 10) {
+  for (let i = 0; i < count; i++) {
+    particles.push({
+      x, y,
+      vx: (Math.random() - 0.5) * 6,
+      vy: -Math.random() * 4 - 2,
+      life: 1,
+      color,
+      size: Math.random() * 4 + 2,
+    });
+  }
+}
+
+function spawnExplosion(x, y) {
+  const colors = ['#ff4400', '#ff6600', '#ffaa00', '#ffdd00', '#ffffff'];
+  for (let i = 0; i < 25; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = Math.random() * 8 + 2;
+    particles.push({
+      x, y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      life: 1,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      size: Math.random() * 5 + 2,
+    });
+  }
+}
+
+function spawnMissParticles(x) {
+  // Red splash at bottom when an item is missed
+  for (let i = 0; i < 15; i++) {
+    particles.push({
+      x: x + (Math.random() - 0.5) * 40,
+      y: canvas.height,
+      vx: (Math.random() - 0.5) * 4,
+      vy: -Math.random() * 5 - 3,
+      life: 0.8,
+      color: Math.random() > 0.5 ? '#ff3333' : '#cc0000',
+      size: Math.random() * 4 + 2,
+    });
+  }
+}
+
+function updateParticles(dt) {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vy += 5 * dt;
+    p.life -= dt * 2;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+}
+
+function drawParticles() {
+  for (const p of particles) {
+    ctx.globalAlpha = Math.max(0, p.life);
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+// --- Popups ---
+let popups = [];
+
+function spawnPopup(x, y, text, color = '#4caf50') {
+  popups.push({ x, y, text, life: 1, color });
+}
+
+function updatePopups(dt) {
+  for (let i = popups.length - 1; i >= 0; i--) {
+    popups[i].y -= 40 * dt;
+    popups[i].life -= dt * 1.5;
+    if (popups[i].life <= 0) popups.splice(i, 1);
+  }
+}
+
+function drawPopups() {
+  ctx.save();
+  ctx.font = 'bold 22px Segoe UI, sans-serif';
+  ctx.textAlign = 'center';
+  for (const p of popups) {
+    ctx.globalAlpha = p.life;
+    ctx.fillStyle = p.color;
+    ctx.shadowColor = 'rgba(0,0,0,0.7)';
+    ctx.shadowBlur = 4;
+    ctx.fillText(p.text, p.x, p.y);
+  }
+  ctx.restore();
+  ctx.globalAlpha = 1;
+}
+
+// --- Game logic ---
+function spawnItem() {
+  const type = ITEM_TYPES[Math.floor(Math.random() * ITEM_TYPES.length)];
+  const margin = ITEM_SIZE;
+  items.push({
+    x: margin + Math.random() * (canvas.width - margin * 2),
+    y: -ITEM_SIZE,
+    speed: 120 + Math.random() * 60 + difficulty * 15,
+    emoji: type.emoji,
+    label: type.label,
+    color: type.color,
+    type: type.type,
+  });
+}
+
+function spawnBonus() {
+  const type = BONUS_TYPES[Math.floor(Math.random() * BONUS_TYPES.length)];
+  // Don't spawn extra life if already at max
+  if (type.type === 'extralife' && misses === 0) {
+    // Give fire instead
+    const fire = BONUS_TYPES[0];
+    items.push({
+      x: ITEM_SIZE + Math.random() * (canvas.width - ITEM_SIZE * 2),
+      y: -ITEM_SIZE,
+      speed: 90 + Math.random() * 40,
+      emoji: fire.emoji,
+      label: fire.label,
+      color: fire.color,
+      type: fire.type,
+      glow: fire.glow,
+    });
+    return;
+  }
+  items.push({
+    x: ITEM_SIZE + Math.random() * (canvas.width - ITEM_SIZE * 2),
+    y: -ITEM_SIZE,
+    speed: 90 + Math.random() * 40,
+    emoji: type.emoji,
+    label: type.label,
+    color: type.color,
+    type: type.type,
+    glow: type.glow,
+  });
+}
+
+function shootFireball() {
+  if (fireCharges <= 0) return;
+  fireCharges--;
+  fireballs.push({
+    x: basket.x,
+    y: basket.y - 10,
+    speed: 600,
+  });
+}
+
+function initGame() {
+  score = 0;
+  misses = 0;
+  maxLives = 3;
+  items = [];
+  particles = [];
+  popups = [];
+  fireballs = [];
+  fireCharges = 0;
+  difficulty = 0;
+  spawnTimer = 0;
+  bonusSpawnTimer = 0;
+  shakeIntensity = 0;
+  shakeDuration = 0;
+  shakeOffsetX = 0;
+  shakeOffsetY = 0;
+  flashAlpha = 0;
+  basket = {
+    x: canvas.width / 2,
+    y: canvas.height - BASKET_H - 30,
+    speed: 500,
+  };
+  gameRunning = true;
+}
+
+let lastTime = 0;
+
+function gameLoop(timestamp) {
+  if (!gameRunning) return;
+
+  const dt = Math.min((timestamp - lastTime) / 1000, 0.05);
+  lastTime = timestamp;
+
+  // Difficulty ramp
+  difficulty = Math.min(score * 0.3, 20);
+
+  // Move basket
+  const moveSpeed = basket.speed * dt;
+  if (keys['ArrowLeft'] || keys['a'] || keys['A']) basket.x -= moveSpeed;
+  if (keys['ArrowRight'] || keys['d'] || keys['D']) basket.x += moveSpeed;
+  basket.x = Math.max(BASKET_W / 2, Math.min(canvas.width - BASKET_W / 2, basket.x));
+  basket.y = canvas.height - BASKET_H - 30;
+
+  // Fire input
+  if (keysJustPressed[' '] || keysJustPressed['Spacebar']) {
+    shootFireball();
+  }
+  // Clear just-pressed
+  for (const k in keysJustPressed) delete keysJustPressed[k];
+
+  // Spawn items
+  const spawnInterval = Math.max(0.4, 1.5 - difficulty * 0.05);
+  spawnTimer += dt;
+  if (spawnTimer >= spawnInterval) {
+    spawnItem();
+    spawnTimer = 0;
+  }
+
+  // Spawn bonuses (every 6-10 seconds)
+  bonusSpawnTimer += dt;
+  const bonusInterval = 6 + Math.random() * 4;
+  if (bonusSpawnTimer >= bonusInterval) {
+    spawnBonus();
+    bonusSpawnTimer = 0;
+  }
+
+  // Update fireballs
+  for (let i = fireballs.length - 1; i >= 0; i--) {
+    const fb = fireballs[i];
+    fb.y -= fb.speed * dt;
+
+    // Check fireball vs items
+    let hit = false;
+    for (let j = items.length - 1; j >= 0; j--) {
+      const item = items[j];
+      const dx = Math.abs(fb.x - item.x);
+      const dy = Math.abs(fb.y - item.y);
+      if (dx < 35 && dy < 35) {
+        // Fireball destroys the item and scores a point
+        if (item.type === 'item') {
+          score++;
+          spawnPopup(item.x, item.y - 20, `+1 🔥 ${item.label}`, '#ff6600');
+        } else {
+          // Bonus items just explode, no score
+          spawnPopup(item.x, item.y - 20, `💥`, '#ffaa00');
+        }
+        spawnExplosion(item.x, item.y);
+        items.splice(j, 1);
+        hit = true;
+        break;
+      }
+    }
+
+    if (hit || fb.y < -30) {
+      fireballs.splice(i, 1);
+    }
+  }
+
+  // Update items
+  for (let i = items.length - 1; i >= 0; i--) {
+    const item = items[i];
+    item.y += item.speed * dt;
+
+    // Check catch
+    const dx = Math.abs(item.x - basket.x);
+    const dy = item.y - basket.y;
+    if (dx < BASKET_W / 2 + 10 && dy > -10 && dy < BASKET_H / 2) {
+
+      if (item.type === 'item') {
+        // Regular item catch
+        score++;
+        spawnParticles(item.x, item.y, item.color);
+        spawnPopup(item.x, item.y - 20, `+1 ${item.label}`);
+      } else if (item.type === 'fire') {
+        // Fire power-up
+        fireCharges += 3;
+        spawnParticles(item.x, item.y, '#ff6600', 20);
+        spawnPopup(item.x, item.y - 20, '🔥 x3 Fire!', '#ff6600');
+      } else if (item.type === 'extralife') {
+        // Extra life
+        if (misses > 0) {
+          misses--;
+          spawnParticles(item.x, item.y, '#00ff88', 20);
+          spawnPopup(item.x, item.y - 20, '💚 +1 Life!', '#00ff88');
+        } else {
+          // Already full health — give bonus points instead
+          score += 3;
+          spawnParticles(item.x, item.y, '#00ff88', 15);
+          spawnPopup(item.x, item.y - 20, '+3 Bonus!', '#00ff88');
+        }
+      }
+
+      items.splice(i, 1);
+      continue;
+    }
+
+    // Check miss (only regular items count as misses)
+    if (item.y > canvas.height + ITEM_SIZE) {
+      if (item.type === 'item') {
+        misses++;
+        triggerShake(12, 0.4);
+        flashAlpha = 0.35;
+        spawnMissParticles(item.x);
+        spawnPopup(item.x, canvas.height - 60, '✖ Miss!', '#ff4444');
+      }
+      // Bonuses just disappear without penalty
+      items.splice(i, 1);
+      if (misses >= maxLives) {
+        // Big shake on game over
+        triggerShake(20, 0.6);
+        gameOver();
+        return;
+      }
+    }
+  }
+
+  // Update shake
+  updateShake(dt);
+
+  // Update flash
+  if (flashAlpha > 0) flashAlpha = Math.max(0, flashAlpha - dt * 1.5);
+
+  updateParticles(dt);
+  updatePopups(dt);
+
+  // --- DRAW with shake offset ---
+  ctx.save();
+  ctx.translate(shakeOffsetX, shakeOffsetY);
+
+  drawBackground();
+  drawParticles();
+  drawPopups();
+
+  for (const item of items) drawItem(item);
+  for (const fb of fireballs) drawFireball(fb);
+  drawBasket(basket.x, basket.y);
+  drawHUD();
+
+  ctx.restore();
+
+  // Red flash overlay (drawn on top, no shake)
+  if (flashAlpha > 0) {
+    ctx.save();
+    ctx.globalAlpha = flashAlpha;
+    ctx.fillStyle = '#ff0000';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.restore();
+  }
+
+  requestAnimationFrame(gameLoop);
+}
+
+function gameOver() {
+  gameRunning = false;
+  document.getElementById('finalScore').textContent = score;
+  document.getElementById('gameOverScreen').style.display = 'flex';
+}
+
+function startGame() {
+  document.getElementById('startScreen').style.display = 'none';
+  document.getElementById('gameOverScreen').style.display = 'none';
+  initGame();
+  lastTime = performance.now();
+  requestAnimationFrame(gameLoop);
+}
+
+document.getElementById('startBtn').addEventListener('click', startGame);
+document.getElementById('restartBtn').addEventListener('click', startGame);
+</script>
+</body>
+</html>
