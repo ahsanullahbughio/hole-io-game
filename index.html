@@ -333,7 +333,7 @@ const ISO = 0.5;
 const HOLE_R0 = 24, HOLE_RMAX = 300, HOLE_SPD = 190;
 const GROW = 0.16, SWALLOW = 0.85;
 const CAM_L = 0.07, ZM_L = 0.03;
-const FRUSTUM_MIN = 30, FRUSTUM_MAX = 120;
+const FRUSTUM_MIN = 35, FRUSTUM_MAX = 75;  // Tighter zoom range — items stay visible
 const DUR = 60;
 const TILES_N = Math.ceil(W / T);
 
@@ -344,117 +344,258 @@ const Z_TEXTILE = 4, Z_FOOD = 5, Z_PLAZA = 6, Z_PARKING = 7;
 let tileMap = [];
 
 function buildMapSouq() {
+  // Saudi city layout — desert surround, structured walled city, clear districts
+  // TILES_N = 40 (W=2400, T=60)
   tileMap = [];
   for (let x = 0; x < TILES_N; x++) {
     tileMap[x] = [];
-    for (let y = 0; y < TILES_N; y++) tileMap[x][y] = Z_SAND;
+    for (let y = 0; y < TILES_N; y++) tileMap[x][y] = Z_SAND; // desert surround
   }
-  for (let x = 3; x < TILES_N - 3; x++)
-    for (let y = 3; y < TILES_N - 3; y++) tileMap[x][y] = Z_MARKET;
-  const pc = Math.floor(TILES_N / 2);
-  for (let x = pc - 4; x < pc + 4; x++)
-    for (let y = pc - 4; y < pc + 4; y++) tileMap[x][y] = Z_PLAZA;
-  for (let i = 0; i < TILES_N; i++) {
-    tileMap[pc-1][i] = Z_ROAD; tileMap[pc][i] = Z_ROAD;
-    tileMap[i][pc-1] = Z_ROAD; tileMap[i][pc] = Z_ROAD;
+
+  // ── City boundary wall (ring road) ──
+  for (let x = 2; x < 38; x++)
+    for (let y = 2; y < 38; y++) tileMap[x][y] = Z_MARKET; // city block base
+
+  // ── RING ROAD: outer perimeter (2 tiles wide) ──
+  for (let i = 2; i < 38; i++) {
+    tileMap[i][2] = Z_ROAD; tileMap[i][3] = Z_ROAD;   // top ring
+    tileMap[i][36] = Z_ROAD; tileMap[i][37] = Z_ROAD; // bottom ring
+    tileMap[2][i] = Z_ROAD; tileMap[3][i] = Z_ROAD;   // left ring
+    tileMap[36][i] = Z_ROAD; tileMap[37][i] = Z_ROAD; // right ring
   }
-  const q1 = Math.floor(TILES_N/4), q3 = Math.floor(TILES_N*3/4);
-  for (let i = 3; i < TILES_N - 3; i++) {
-    tileMap[q1][i] = Z_ROAD; tileMap[q3][i] = Z_ROAD;
-    tileMap[i][q1] = Z_ROAD; tileMap[i][q3] = Z_ROAD;
+
+  // ── MAIN BOULEVARD GRID (2-tile avenues) ──
+  for (const rx of [11, 12, 20, 21, 29, 30]) {
+    for (let y = 2; y < 38; y++) tileMap[rx][y] = Z_ROAD;
   }
-  for (let x = 4; x < q1; x++)
-    for (let y = 4; y < q1; y++)
+  for (const ry of [11, 12, 20, 21, 29, 30]) {
+    for (let x = 2; x < 38; x++) tileMap[x][ry] = Z_ROAD;
+  }
+
+  // ── SECONDARY STREETS (1-tile, mid-block) ──
+  for (const rx of [7, 16, 25, 33]) {
+    for (let y = 4; y < 36; y++) tileMap[rx][y] = Z_ROAD;
+  }
+  for (const ry of [7, 16, 25, 33]) {
+    for (let x = 4; x < 36; x++) tileMap[x][ry] = Z_ROAD;
+  }
+
+  // ══ DISTRICT 1 (NW): SPICE QUARTER — cols 4–10, rows 4–10 ══
+  for (let x = 4; x < 11; x++)
+    for (let y = 4; y < 11; y++)
       if (tileMap[x][y] !== Z_ROAD) tileMap[x][y] = Z_SPICE;
-  for (let x = q1+1; x < pc-1; x++)
-    for (let y = 4; y < q1; y++)
+
+  // ══ DISTRICT 2 (N-CENTER): TEXTILE DISTRICT — cols 13–19, rows 4–10 ══
+  for (let x = 13; x < 20; x++)
+    for (let y = 4; y < 11; y++)
       if (tileMap[x][y] !== Z_ROAD) tileMap[x][y] = Z_TEXTILE;
-  for (let x = 4; x < q1; x++)
-    for (let y = q1+1; y < pc-1; y++)
+
+  // ══ DISTRICT 3 (NE): GOLD SOUK — cols 22–28, rows 4–10 ══
+  for (let x = 22; x < 29; x++)
+    for (let y = 4; y < 11; y++)
+      if (tileMap[x][y] !== Z_ROAD) tileMap[x][y] = Z_MARKET;
+
+  // ══ DISTRICT 4 (NE far): RESIDENTIAL — cols 31–35, rows 4–10 ══
+  for (let x = 31; x < 36; x++)
+    for (let y = 4; y < 11; y++)
+      if (tileMap[x][y] !== Z_ROAD) tileMap[x][y] = Z_MARKET;
+
+  // ══ DISTRICT 5 (W): FOOD QUARTER — cols 4–10, rows 13–19 ══
+  for (let x = 4; x < 11; x++)
+    for (let y = 13; y < 20; y++)
       if (tileMap[x][y] !== Z_ROAD) tileMap[x][y] = Z_FOOD;
-  for (let x = 0; x < 3; x++)
-    for (let y = 0; y < TILES_N; y++) { tileMap[x][y] = Z_PARKING; tileMap[TILES_N-1-x][y] = Z_PARKING; }
-  for (let y = 0; y < 3; y++)
-    for (let x = 0; x < TILES_N; x++) { tileMap[x][y] = Z_PARKING; tileMap[x][TILES_N-1-y] = Z_PARKING; }
-  for (let i = 0; i < TILES_N; i++) {
-    tileMap[pc-1][i] = Z_ROAD; tileMap[pc][i] = Z_ROAD;
-    tileMap[i][pc-1] = Z_ROAD; tileMap[i][pc] = Z_ROAD;
+
+  // ══ DISTRICT 6 (CENTER): GRAND PLAZA / MOSQUE SQUARE ══
+  // Central plaza — rows 13–19, cols 13–19
+  for (let x = 13; x < 20; x++)
+    for (let y = 13; y < 20; y++) tileMap[x][y] = Z_PLAZA;
+
+  // ══ DISTRICT 7 (CENTER-E): GARDEN / PARK — cols 22–28, rows 13–19 ══
+  for (let x = 22; x < 29; x++)
+    for (let y = 13; y < 20; y++)
+      if (tileMap[x][y] !== Z_ROAD) tileMap[x][y] = Z_PLAZA;
+
+  // ══ DISTRICT 8 (E): MODERN COMMERCIAL — cols 31–35, rows 13–19 ══
+  for (let x = 31; x < 36; x++)
+    for (let y = 13; y < 20; y++)
+      if (tileMap[x][y] !== Z_ROAD) tileMap[x][y] = Z_MARKET;
+
+  // ══ DISTRICT 9 (SW): CAMEL MARKET — cols 4–10, rows 22–28 ══
+  for (let x = 4; x < 11; x++)
+    for (let y = 22; y < 29; y++)
+      if (tileMap[x][y] !== Z_ROAD) tileMap[x][y] = Z_SPICE;
+
+  // ══ DISTRICT 10 (S-CENTER): MOSQUE QUARTER — cols 13–19, rows 22–28 ══
+  for (let x = 13; x < 20; x++)
+    for (let y = 22; y < 29; y++)
+      if (tileMap[x][y] !== Z_ROAD) tileMap[x][y] = Z_SPICE;
+
+  // ══ DISTRICT 11 (SE): SOUQ STALLS — cols 22–28, rows 22–28 ══
+  for (let x = 22; x < 29; x++)
+    for (let y = 22; y < 29; y++)
+      if (tileMap[x][y] !== Z_ROAD) tileMap[x][y] = Z_MARKET;
+
+  // ══ DISTRICT 12 (SE far): PARKING / TRANSPORT — cols 31–35, rows 22–35 ══
+  for (let x = 31; x < 36; x++)
+    for (let y = 22; y < 36; y++)
+      if (tileMap[x][y] !== Z_ROAD) tileMap[x][y] = Z_PARKING;
+
+  // ══ DISTRICT 13 (S): RESIDENTIAL VILLAS — cols 4–28, rows 31–35 ══
+  for (let x = 4; x < 31; x++)
+    for (let y = 31; y < 36; y++)
+      if (tileMap[x][y] !== Z_ROAD) tileMap[x][y] = Z_MARKET;
+
+  // ── Small inner plaza (fountain courtyard, center of plaza district) ──
+  for (let x = 15; x < 18; x++)
+    for (let y = 15; y < 18; y++) tileMap[x][y] = Z_PLAZA;
+
+  // ── RE-PAINT ALL ROADS LAST ──
+  for (const rx of [11, 12, 20, 21, 29, 30])
+    for (let y = 2; y < 38; y++) tileMap[rx][y] = Z_ROAD;
+  for (const ry of [11, 12, 20, 21, 29, 30])
+    for (let x = 2; x < 38; x++) tileMap[x][ry] = Z_ROAD;
+  for (const rx of [7, 16, 25, 33])
+    for (let y = 4; y < 36; y++) tileMap[rx][y] = Z_ROAD;
+  for (const ry of [7, 16, 25, 33])
+    for (let x = 4; x < 36; x++) tileMap[x][ry] = Z_ROAD;
+  // Outer ring
+  for (let i = 2; i < 38; i++) {
+    tileMap[i][2] = Z_ROAD; tileMap[i][3] = Z_ROAD;
+    tileMap[i][36] = Z_ROAD; tileMap[i][37] = Z_ROAD;
+    tileMap[2][i] = Z_ROAD; tileMap[3][i] = Z_ROAD;
+    tileMap[36][i] = Z_ROAD; tileMap[37][i] = Z_ROAD;
   }
-  for (let i = 3; i < TILES_N - 3; i++) {
-    tileMap[q1][i] = Z_ROAD; tileMap[q3][i] = Z_ROAD;
-    tileMap[i][q1] = Z_ROAD; tileMap[i][q3] = Z_ROAD;
-  }
-  for (let x = pc-4; x < pc+4; x++)
-    for (let y = pc-4; y < pc+4; y++) tileMap[x][y] = Z_PLAZA;
 }
 
 function buildMapNY() {
-  // New York City Manhattan-style grid
+  // Full Manhattan-style city grid — structured neighborhoods, parks, waterfront
+  // TILES_N = 40  (each tile = 60 world units, map = 2400x2400)
   tileMap = [];
   for (let x = 0; x < TILES_N; x++) {
     tileMap[x] = [];
-    for (let y = 0; y < TILES_N; y++) tileMap[x][y] = Z_MARKET; // Manhattan blocks
+    for (let y = 0; y < TILES_N; y++) tileMap[x][y] = Z_MARKET; // base: city blocks
   }
 
-  // Avenues (vertical roads every 8 tiles, 2 tiles wide)
-  for (let i = 0; i < 5; i++) {
-    const ax = 4 + i * 8;
-    if (ax < TILES_N - 1) {
-      for (let y = 0; y < TILES_N; y++) {
-        tileMap[ax][y] = Z_ROAD;
-        tileMap[ax + 1][y] = Z_ROAD;
-      }
-    }
+  // ── WATERFRONT: Hudson River (west) & East River (east) ──
+  for (let x = 0; x < 2; x++)
+    for (let y = 0; y < TILES_N; y++) { tileMap[x][y] = Z_SAND; tileMap[TILES_N-1-x][y] = Z_SAND; }
+  // Piers / docks (dark road strips along waterfront)
+  for (let y = 5; y < TILES_N; y += 6) {
+    tileMap[2][y] = Z_ROAD; tileMap[2][y+1] = Z_ROAD;
+    tileMap[TILES_N-3][y] = Z_ROAD; tileMap[TILES_N-3][y+1] = Z_ROAD;
   }
 
-  // Streets (horizontal roads every 5 tiles, 1 tile wide)
-  for (let i = 0; i < 8; i++) {
-    const sy = 3 + i * 5;
-    if (sy < TILES_N) {
-      for (let x = 0; x < TILES_N; x++) {
-        tileMap[x][sy] = Z_ROAD;
-      }
-    }
+  // ── MAIN AVENUE GRID: 3 wide avenues, 2 tiles each ──
+  //   Avenue A: cols 7,8  |  5th Ave: cols 16,17  |  Lexington: cols 25,26
+  for (const ax of [7, 8, 16, 17, 25, 26]) {
+    for (let y = 0; y < TILES_N; y++) tileMap[ax][y] = Z_ROAD;
   }
 
-  // Central Park (large plaza zone, tiles 14-26 × 4-14)
-  for (let x = 14; x < 27 && x < TILES_N; x++)
-    for (let y = 4; y < 15 && y < TILES_N; y++)
-      tileMap[x][y] = Z_PLAZA;
+  // ── CROSS STREETS: every 4 rows — dense Manhattan block rhythm ──
+  for (let sy = 3; sy < TILES_N - 1; sy += 4) {
+    for (let x = 2; x < TILES_N - 2; x++) tileMap[x][sy] = Z_ROAD;
+  }
 
-  // Times Square (small plaza, tiles 18-22 × 18-22)
-  for (let x = 18; x < 23 && x < TILES_N; x++)
-    for (let y = 18; y < 23 && y < TILES_N; y++)
-      tileMap[x][y] = Z_PLAZA;
+  // ══ DISTRICT 1: CENTRAL PARK — cols 9–15, rows 2–14 ══
+  // Large green park — wide open recreational space
+  for (let x = 9; x < 16; x++)
+    for (let y = 2; y < 15; y++)
+      if (tileMap[x][y] !== Z_ROAD) tileMap[x][y] = Z_PLAZA;
+  // Park internal paths
+  for (let x = 9; x < 16; x++) { tileMap[x][8] = Z_ROAD; }          // Transverse road
+  for (let y = 2; y < 15; y++) { tileMap[12][y] = Z_ROAD; }          // Loop road center
 
-  // Chinatown (spice zone, tiles 3-12 × 28-36)
-  for (let x = 3; x < 13 && x < TILES_N; x++)
-    for (let y = 28; y < 37 && y < TILES_N; y++)
-      if (tileMap[x][y] !== Z_ROAD) tileMap[x][y] = Z_SPICE;
-
-  // Little Italy (food zone, tiles 12-20 × 28-34)
-  for (let x = 12; x < 21 && x < TILES_N; x++)
-    for (let y = 28; y < 35 && y < TILES_N; y++)
-      if (tileMap[x][y] !== Z_ROAD) tileMap[x][y] = Z_FOOD;
-
-  // SoHo (textile zone, tiles 14-24 × 34-38)
-  for (let x = 14; x < 25 && x < TILES_N; x++)
-    for (let y = 34; y < 39 && y < TILES_N; y++)
+  // ══ DISTRICT 2: UPPER WEST SIDE — cols 3–6, rows 2–18 ══
+  // Brownstone residential neighborhood
+  for (let x = 3; x < 7; x++)
+    for (let y = 2; y < 19; y++)
       if (tileMap[x][y] !== Z_ROAD) tileMap[x][y] = Z_TEXTILE;
 
-  // Waterfront (sand zones on left/right edges, 3 tiles deep)
-  for (let x = 0; x < 3; x++)
-    for (let y = 0; y < TILES_N; y++) {
-      tileMap[x][y] = Z_SAND;
-      if (TILES_N - 1 - x >= 0) tileMap[TILES_N - 1 - x][y] = Z_SAND;
-    }
+  // ══ DISTRICT 3: UPPER EAST SIDE — cols 18–24, rows 2–14 ══
+  // Upscale residential & museums
+  for (let x = 18; x < 25; x++)
+    for (let y = 2; y < 15; y++)
+      if (tileMap[x][y] !== Z_ROAD) tileMap[x][y] = Z_MARKET;
 
-  // Parking (top/bottom edges, 3 tiles deep)
-  for (let y = 0; y < 3; y++)
-    for (let x = 3; x < TILES_N - 3; x++) {
-      tileMap[x][y] = Z_PARKING;
-      if (TILES_N - 1 - y >= 0) tileMap[x][TILES_N - 1 - y] = Z_PARKING;
-    }
+  // ══ DISTRICT 4: MIDTOWN EAST — cols 27–37, rows 2–22 ══
+  // Dense skyscraper / commercial district
+  for (let x = 27; x < 38; x++)
+    for (let y = 2; y < 23; y++)
+      if (tileMap[x][y] !== Z_ROAD) tileMap[x][y] = Z_MARKET;
+
+  // ══ DISTRICT 5: TIMES SQUARE / MIDTOWN WEST — cols 3–6, rows 20–26 ══
+  // Bright commercial, food & entertainment
+  for (let x = 3; x < 7; x++)
+    for (let y = 20; y < 27; y++)
+      if (tileMap[x][y] !== Z_ROAD) tileMap[x][y] = Z_FOOD;
+
+  // ══ DISTRICT 6: HERALD SQUARE / GARMENT — cols 9–15, rows 16–22 ══
+  // Fashion & retail district
+  for (let x = 9; x < 16; x++)
+    for (let y = 16; y < 23; y++)
+      if (tileMap[x][y] !== Z_ROAD) tileMap[x][y] = Z_TEXTILE;
+
+  // ══ DISTRICT 7: KOREATOWN / FLATIRON — cols 18–24, rows 16–26 ══
+  // Mixed food & culture
+  for (let x = 18; x < 25; x++)
+    for (let y = 16; y < 27; y++)
+      if (tileMap[x][y] !== Z_ROAD) tileMap[x][y] = Z_SPICE;
+
+  // ══ DISTRICT 8: GRAMERCY / MURRAY HILL — cols 27–37, rows 24–30 ══
+  // Quieter residential & townhouses
+  for (let x = 27; x < 38; x++)
+    for (let y = 24; y < 31; y++)
+      if (tileMap[x][y] !== Z_ROAD) tileMap[x][y] = Z_TEXTILE;
+
+  // ══ DISTRICT 9: CHELSEA / GREENWICH — cols 3–15, rows 28–34 ══
+  // Art galleries, parks, mixed use
+  for (let x = 3; x < 16; x++)
+    for (let y = 28; y < 35; y++)
+      if (tileMap[x][y] !== Z_ROAD) tileMap[x][y] = Z_FOOD;
+
+  // ══ DISTRICT 10: SOHO / TRIBECA — cols 18–37, rows 28–35 ══
+  // Boutique retail and loft buildings
+  for (let x = 18; x < 38; x++)
+    for (let y = 28; y < 36; y++)
+      if (tileMap[x][y] !== Z_ROAD) tileMap[x][y] = Z_MARKET;
+
+  // ══ WATERFRONT PARKS: Battery Park (south) ══
+  for (let x = 3; x < 38; x++)
+    for (let y = 36; y < TILES_N; y++)
+      if (tileMap[x][y] !== Z_ROAD) tileMap[x][y] = Z_PLAZA;
+
+  // ══ SMALL NEIGHBORHOOD PARKS (scattered) ══
+  // Madison Square Park
+  for (let x = 19; x < 22; x++)
+    for (let y = 20; y < 24; y++)
+      if (tileMap[x][y] !== Z_ROAD) tileMap[x][y] = Z_PLAZA;
+  // Bryant Park
+  for (let x = 10; x < 14; x++)
+    for (let y = 20; y < 24; y++)
+      if (tileMap[x][y] !== Z_ROAD) tileMap[x][y] = Z_PLAZA;
+  // Riverside Park (west waterfront strip)
+  for (let x = 3; x < 6; x++)
+    for (let y = 2; y < 18; y++)
+      tileMap[2][y] = Z_PLAZA;
+
+  // ══ PARKING/TRANSPORT HUBS ══
+  // Penn Station area
+  for (let x = 9; x < 16; x++)
+    for (let y = 24; y < 27; y++)
+      if (tileMap[x][y] !== Z_ROAD) tileMap[x][y] = Z_PARKING;
+  // Grand Central area
+  for (let x = 18; x < 25; x++)
+    for (let y = 12; y < 15; y++)
+      if (tileMap[x][y] !== Z_ROAD) tileMap[x][y] = Z_PARKING;
+
+  // ── RE-PAINT ALL ROADS LAST (ensures clean grid over districts) ──
+  for (const ax of [7, 8, 16, 17, 25, 26])
+    for (let y = 0; y < TILES_N; y++) tileMap[ax][y] = Z_ROAD;
+  for (let sy = 3; sy < TILES_N - 1; sy += 4)
+    for (let x = 2; x < TILES_N - 2; x++) tileMap[x][sy] = Z_ROAD;
+  // Re-paint park internal paths
+  for (let x = 9; x < 16; x++) tileMap[x][8] = Z_ROAD;
+  for (let y = 2; y < 15; y++) tileMap[12][y] = Z_ROAD;
 }
 
 // Zone colors for SOUQ map
@@ -469,108 +610,112 @@ const ZONE_COLORS_SOUQ = {
   [Z_PARKING]: '#8A8580',
 };
 
-// Zone colors for NYC map (same zones, different semantic meanings)
+// Zone colors for NYC map
 const ZONE_COLORS_NY = {
-  [Z_ROAD]:    '#3D3D3D',  // NYC streets
-  [Z_SAND]:    '#4A6FA5',  // Waterfront (Hudson/East River)
-  [Z_MARKET]:  '#8B8B8B',  // Manhattan blocks
-  [Z_SPICE]:   '#B5321E',  // Chinatown
-  [Z_TEXTILE]: '#9B6B8A',  // SoHo
-  [Z_FOOD]:    '#5B8C3E',  // Little Italy
-  [Z_PLAZA]:   '#4CAF50',  // Central Park / Times Square
-  [Z_PARKING]: '#5A5A5A',  // Parking lots
+  [Z_ROAD]:    '#4A4A4A',  // Dark asphalt streets
+  [Z_SAND]:    '#3A7BC8',  // Hudson/East River blue
+  [Z_MARKET]:  '#9A9A9E',  // Midtown concrete & glass
+  [Z_SPICE]:   '#C4453A',  // Koreatown / warm cultural district
+  [Z_TEXTILE]: '#9B7A8E',  // Chelsea / SoHo brownstone-pink
+  [Z_FOOD]:    '#4E7A3A',  // Chelsea / Greenwich green
+  [Z_PLAZA]:   '#5DBE6A',  // Parks — Central Park, Bryant Park
+  [Z_PARKING]: '#6A6A72',  // Transit hubs & parking
 };
 
 // ====== SOUQ OBJECT TYPES ======
 const TYPES_SOUQ = [
-  { id:'dates',    radius:7,  tier:1, zone:'spice' },
-  { id:'coffee',   radius:9,  tier:1, zone:'food' },
-  { id:'incense',  radius:9,  tier:1, zone:'spice' },
-  { id:'sandals',  radius:8,  tier:1, zone:'market' },
-  { id:'cat',      radius:11, tier:1, zone:'any', npc:true },
-  { id:'pot',      radius:8,  tier:1, zone:'food' },
-  { id:'lantern',  radius:7,  tier:1, zone:'market' },
-  { id:'melon',    radius:8,  tier:1, zone:'food' },
-  { id:'bread',    radius:7,  tier:1, zone:'food' },
-  { id:'ring',     radius:5,  tier:1, zone:'market' },
-  { id:'spices',   radius:18, tier:2, zone:'spice' },
-  { id:'carpet',   radius:20, tier:2, zone:'textile' },
-  { id:'crate',    radius:20, tier:2, zone:'market' },
-  { id:'person',   radius:16, tier:2, zone:'road', npc:true },
-  { id:'woman',    radius:16, tier:2, zone:'road', npc:true },
-  { id:'goat',     radius:18, tier:2, zone:'any', npc:true },
-  { id:'barrel',   radius:19, tier:2, zone:'market' },
-  { id:'bench',    radius:17, tier:2, zone:'plaza' },
-  { id:'fountain', radius:22, tier:2, zone:'plaza' },
-  { id:'cart',     radius:19, tier:2, zone:'food' },
-  { id:'stall',    radius:38, tier:3, zone:'market' },
-  { id:'car',      radius:42, tier:3, zone:'parking' },
-  { id:'truck',    radius:48, tier:3, zone:'parking' },
-  { id:'camel',    radius:35, tier:3, zone:'any', npc:true },
-  { id:'palm',     radius:32, tier:3, zone:'any' },
-  { id:'tent',     radius:36, tier:3, zone:'market' },
-  { id:'building', radius:75, tier:4, zone:'market' },
-  { id:'tower',    radius:80, tier:4, zone:'parking' },
-  { id:'mosque',   radius:95, tier:4, zone:'plaza' },
+  { id:'dates',    radius:14, tier:1, zone:'spice' },
+  { id:'coffee',   radius:16, tier:1, zone:'food' },
+  { id:'incense',  radius:16, tier:1, zone:'spice' },
+  { id:'sandals',  radius:15, tier:1, zone:'market' },
+  { id:'cat',      radius:18, tier:1, zone:'any', npc:true },
+  { id:'pot',      radius:15, tier:1, zone:'food' },
+  { id:'lantern',  radius:14, tier:1, zone:'market' },
+  { id:'melon',    radius:15, tier:1, zone:'food' },
+  { id:'bread',    radius:14, tier:1, zone:'food' },
+  { id:'ring',     radius:12, tier:1, zone:'market' },
+  { id:'spices',   radius:30, tier:2, zone:'spice' },
+  { id:'carpet',   radius:32, tier:2, zone:'textile' },
+  { id:'crate',    radius:32, tier:2, zone:'market' },
+  { id:'person',   radius:26, tier:2, zone:'road', npc:true },
+  { id:'woman',    radius:26, tier:2, zone:'road', npc:true },
+  { id:'goat',     radius:28, tier:2, zone:'any', npc:true },
+  { id:'barrel',   radius:28, tier:2, zone:'market' },
+  { id:'bench',    radius:26, tier:2, zone:'plaza' },
+  { id:'fountain', radius:34, tier:2, zone:'plaza' },
+  { id:'cart',     radius:28, tier:2, zone:'food' },
+  { id:'stall',    radius:55, tier:3, zone:'market' },
+  { id:'car',      radius:60, tier:3, zone:'parking' },
+  { id:'truck',    radius:68, tier:3, zone:'parking' },
+  { id:'camel',    radius:50, tier:3, zone:'any', npc:true },
+  { id:'palm',     radius:46, tier:3, zone:'any' },
+  { id:'tent',     radius:52, tier:3, zone:'market' },
+  { id:'building', radius:100, tier:4, zone:'market' },
+  { id:'tower',    radius:110, tier:4, zone:'parking' },
+  { id:'mosque',   radius:130, tier:4, zone:'plaza' },
   // Time bonuses — different sizes scattered across map
-  { id:'bonus5',   radius:10, tier:1, zone:'any', isBonus:true, bonusTime:5 },
-  { id:'bonus10',  radius:22, tier:2, zone:'any', isBonus:true, bonusTime:10 },
+  { id:'bonus5',   radius:18, tier:1, zone:'any', isBonus:true, bonusTime:5 },
+  { id:'bonus10',  radius:32, tier:2, zone:'any', isBonus:true, bonusTime:10 },
 ];
 
 const SPAWN_SOUQ = {
-  dates:10, coffee:10, incense:8, sandals:8, cat:6, pot:8, lantern:12, melon:8, bread:8, ring:6,
-  spices:8, carpet:8, crate:10, person:10, woman:8, goat:5, barrel:8, bench:8, fountain:4, cart:6,
-  stall:8, car:8, truck:4, camel:4, palm:12, tent:6,
-  building:8, tower:4, mosque:3,
-  bonus5:8, bonus10:5,
+  // Tier 1 — fill districts with good density
+  dates:14, coffee:12, incense:10, sandals:10, cat:7, pot:10, lantern:14, melon:10, bread:10, ring:7,
+  // Tier 2 — medium density
+  spices:10, carpet:9, crate:10, person:12, woman:10, goat:7, barrel:9, bench:9, fountain:5, cart:9,
+  // Tier 3 — sparse landmarks
+  stall:8, car:8, truck:5, camel:5, palm:14, tent:7,
+  // Tier 4 — a few per zone
+  building:8, tower:5, mosque:3,
+  bonus5:9, bonus10:5,
 };
 
 // ====== NYC OBJECT TYPES ======
 const TYPES_NY = [
-  // Tier 1 — Tiny
-  { id:'hotdog',     radius:7,  tier:1, zone:'food' },
-  { id:'coffee_ny',  radius:8,  tier:1, zone:'market' },
-  { id:'pigeon',     radius:9,  tier:1, zone:'any', npc:true },
-  { id:'sneakers',   radius:7,  tier:1, zone:'market' },
-  { id:'rat',        radius:8,  tier:1, zone:'road', npc:true },
-  { id:'pizza',      radius:8,  tier:1, zone:'food' },
-  { id:'newspaper',  radius:6,  tier:1, zone:'market' },
-  { id:'pretzel',    radius:7,  tier:1, zone:'food' },
-  { id:'bagel',      radius:6,  tier:1, zone:'food' },
-  { id:'watch',      radius:5,  tier:1, zone:'market' },
+  // Tier 1 — Small but visible
+  { id:'hotdog',     radius:14, tier:1, zone:'food' },
+  { id:'coffee_ny',  radius:15, tier:1, zone:'market' },
+  { id:'pigeon',     radius:16, tier:1, zone:'any', npc:true },
+  { id:'sneakers',   radius:14, tier:1, zone:'market' },
+  { id:'rat',        radius:14, tier:1, zone:'road', npc:true },
+  { id:'pizza',      radius:15, tier:1, zone:'food' },
+  { id:'newspaper',  radius:13, tier:1, zone:'market' },
+  { id:'pretzel',    radius:14, tier:1, zone:'food' },
+  { id:'bagel',      radius:13, tier:1, zone:'food' },
+  { id:'watch',      radius:12, tier:1, zone:'market' },
   // Tier 2 — Medium
-  { id:'vendor_cart', radius:18, tier:2, zone:'road' },
-  { id:'mailbox',     radius:16, tier:2, zone:'road' },
-  { id:'dumpster',    radius:20, tier:2, zone:'market' },
-  { id:'pedestrian',  radius:16, tier:2, zone:'road', npc:true },
-  { id:'tourist',     radius:16, tier:2, zone:'plaza', npc:true },
-  { id:'dog',         radius:14, tier:2, zone:'any', npc:true },
-  { id:'hydrant',     radius:15, tier:2, zone:'road' },
-  { id:'bench_ny',    radius:18, tier:2, zone:'plaza' },
-  { id:'statue',      radius:20, tier:2, zone:'plaza' },
-  { id:'bike',        radius:17, tier:2, zone:'road' },
+  { id:'vendor_cart', radius:30, tier:2, zone:'road' },
+  { id:'mailbox',     radius:26, tier:2, zone:'road' },
+  { id:'dumpster',    radius:32, tier:2, zone:'market' },
+  { id:'pedestrian',  radius:26, tier:2, zone:'road', npc:true },
+  { id:'tourist',     radius:26, tier:2, zone:'plaza', npc:true },
+  { id:'dog',         radius:24, tier:2, zone:'any', npc:true },
+  { id:'hydrant',     radius:24, tier:2, zone:'road' },
+  { id:'bench_ny',    radius:28, tier:2, zone:'plaza' },
+  { id:'statue',      radius:32, tier:2, zone:'plaza' },
+  { id:'bike',        radius:26, tier:2, zone:'road' },
   // Tier 3 — Large
-  { id:'foodtruck',  radius:40, tier:3, zone:'road' },
-  { id:'taxi',       radius:42, tier:3, zone:'parking' },
-  { id:'bus',        radius:48, tier:3, zone:'parking' },
-  { id:'horse',      radius:35, tier:3, zone:'plaza', npc:true },
-  { id:'tree_ny',    radius:32, tier:3, zone:'plaza' },
-  { id:'hotdog_stand', radius:36, tier:3, zone:'food' },
+  { id:'foodtruck',  radius:58, tier:3, zone:'road' },
+  { id:'taxi',       radius:60, tier:3, zone:'parking' },
+  { id:'bus',        radius:68, tier:3, zone:'parking' },
+  { id:'horse',      radius:52, tier:3, zone:'plaza', npc:true },
+  { id:'tree_ny',    radius:46, tier:3, zone:'plaza' },
+  { id:'hotdog_stand', radius:54, tier:3, zone:'food' },
   // Tier 4 — Huge
-  { id:'brownstone', radius:70, tier:4, zone:'market' },
-  { id:'crane_ny',   radius:75, tier:4, zone:'market' },
-  { id:'skyscraper', radius:90, tier:4, zone:'market' },
+  { id:'brownstone', radius:95, tier:4, zone:'market' },
+  { id:'crane_ny',   radius:100, tier:4, zone:'market' },
+  { id:'skyscraper', radius:120, tier:4, zone:'market' },
   // Time bonuses
-  { id:'bonus5',     radius:10, tier:1, zone:'any', isBonus:true, bonusTime:5 },
-  { id:'bonus10',    radius:22, tier:2, zone:'any', isBonus:true, bonusTime:10 },
+  { id:'bonus5',     radius:18, tier:1, zone:'any', isBonus:true, bonusTime:5 },
+  { id:'bonus10',    radius:32, tier:2, zone:'any', isBonus:true, bonusTime:10 },
 ];
 
 const SPAWN_NY = {
-  hotdog:10, coffee_ny:10, pigeon:8, sneakers:8, rat:6, pizza:10, newspaper:8, pretzel:8, bagel:8, watch:6,
-  vendor_cart:8, mailbox:10, dumpster:8, pedestrian:10, tourist:8, dog:5, hydrant:10, bench_ny:8, statue:4, bike:6,
-  foodtruck:6, taxi:8, bus:4, horse:4, tree_ny:12, hotdog_stand:6,
-  brownstone:8, crane_ny:4, skyscraper:3,
-  bonus5:8, bonus10:5,
+  hotdog:14, coffee_ny:14, pigeon:10, sneakers:10, rat:8, pizza:14, newspaper:10, pretzel:10, bagel:10, watch:8,
+  vendor_cart:10, mailbox:12, dumpster:10, pedestrian:14, tourist:10, dog:8, hydrant:14, bench_ny:12, statue:6, bike:8,
+  foodtruck:8, taxi:10, bus:6, horse:6, tree_ny:18, hotdog_stand:8,
+  brownstone:12, crane_ny:6, skyscraper:5,
+  bonus5:10, bonus10:6,
 };
 
 // ====== THREE.JS SETUP ======
@@ -1945,8 +2090,8 @@ let currentMapId = 'souq';
 // Scale factors for 3D models per tier to match game radii
 function getModelScale(type) {
   const r = type.radius / SCALE;
-  const baseScales = { 1: 0.8, 2: 1.0, 3: 1.0, 4: 1.0 };
-  return r * (baseScales[type.tier] || 1.0) * 0.5;
+  const baseScales = { 1: 1.6, 2: 1.4, 3: 1.2, 4: 1.0 };
+  return r * (baseScales[type.tier] || 1.0) * 0.9;  // Bigger models, always visible
 }
 
 // ====== INPUT ======
