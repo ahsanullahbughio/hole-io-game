@@ -84,6 +84,30 @@
     transition: width 0.15s;
   }
   #tierGuide { font-size: 10px; color: #999; margin-top: 3px; }
+  #quitBtn {
+    position: absolute;
+    top: 12px; left: 50%;
+    transform: translateX(120px);
+    background: rgba(60,0,0,0.55);
+    border: 1px solid rgba(255,80,80,0.5);
+    border-radius: 8px;
+    color: rgba(255,120,120,0.9);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: bold;
+    padding: 6px 14px;
+    cursor: pointer;
+    pointer-events: auto;
+    transition: all 0.15s;
+    letter-spacing: 0.5px;
+    z-index: 11;
+  }
+  #quitBtn:hover {
+    background: rgba(120,0,0,0.75);
+    border-color: rgba(255,80,80,0.9);
+    color: #ff8888;
+    box-shadow: 0 0 10px rgba(255,60,60,0.35);
+  }
 
   /* ── Time bonus popup ── */
   .time-popup {
@@ -256,6 +280,7 @@
       <div id="sizeBarOuter"><div id="sizeBarInner"></div></div>
       <div id="tierGuide">Next: Tier 2: ~35</div>
     </div>
+    <button id="quitBtn" pointer-events="auto">✕ Quit</button>
   </div>
 
   <div id="startScreen">
@@ -278,8 +303,8 @@
   </div>
 
   <div id="gameOverScreen">
-    <h1>Time's Up!</h1>
-    <div class="subtitle">You devoured</div>
+    <h1 id="gameOverHeadline">Time's Up!</h1>
+    <div class="subtitle" id="gameOverSubtitle">You devoured</div>
     <div id="finalScore">0%</div>
     <div id="finalCount"></div>
     <button class="btn" id="restartBtn">Play Again</button>
@@ -291,12 +316,14 @@
 <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
 
 <script type="module">
-import { getAllMaps, loadCustomMaps } from './js/maps.js';
+import { getAllMaps } from './js/maps.js';
 import {
   startGame as _startGame,
+  quitGame,
   loadScores,
   onResize,
   setupJoystick,
+  currentMapId,
 } from './js/game.js';
 
 // ====== HOME SCREEN ======
@@ -351,8 +378,12 @@ function renderScoreHistory(allMaps) {
 }
 
 // ====== BUTTONS ======
+document.getElementById('quitBtn').addEventListener('click', () => {
+  quitGame();
+});
+
 document.getElementById('restartBtn').addEventListener('click', () => {
-  import('./js/game.js').then(({ startGame, currentMapId }) => startGame(currentMapId));
+  import('./js/game.js').then(mod => mod.startGame(mod.currentMapId));
 });
 document.getElementById('homeBtn').addEventListener('click', () => {
   document.getElementById('gameOverScreen').style.display = 'none';

@@ -26,6 +26,7 @@ let groundMesh, holeGroup, holeCylinder, holeRim, holeMask;
 export let gameRunning = false;
 let gameTime, score, totalItems;
 let hole, camState, objects, particles3D, lastTime;
+let gameEndReason = 'time'; // 'time' | 'complete' | 'quit'
 
 // ====== THREE.JS INIT ======
 export function initThree() {
@@ -317,7 +318,7 @@ export function initGame(mapId) {
 // ====== UPDATE FUNCTIONS ======
 function updateTimer(dt) {
   gameTime -= dt;
-  if (gameTime <= 0) { gameTime = 0; endGame(); }
+  if (gameTime <= 0) { gameTime = 0; gameEndReason = 'time'; endGame(); }
 }
 
 // Keys and joystick state (shared with input module in index.html)
@@ -531,6 +532,12 @@ function updateCollisions() {
           if (hole.targetRadius > HOLE_RMAX) hole.targetRadius = HOLE_RMAX;
           const tierColors = [0xe8b84b, 0xff8844, 0x2ecc71, 0xe74c3c];
           spawnParticles3D(o.worldX, o.worldY, tierColors[o.type.tier - 1], 10);
+          // Check for 100% completion
+          if (score >= totalItems) {
+            gameEndReason = 'complete';
+            endGame();
+            return;
+          }
         }
         if (o.mesh) {
           scene.remove(o.mesh);
@@ -705,23 +712,54 @@ export function saveScore(mapId, scorePct, itemsStr) {
 }
 
 // ====== GAME FLOW ======
+export function getEndReason() { return gameEndReason; }
+
 export function endGame() {
   gameRunning = false;
-  const MAPS = getAllMaps();
   const pct = totalItems > 0 ? Math.round((score / totalItems) * 100) : 0;
+
+  // Update headline based on reason
+  const headlineEl = document.getElementById('gameOverHeadline');
+  const subtitleEl = document.getElementById('gameOverSubtitle');
+  if (headlineEl) {
+    if (gameEndReason === 'complete') {
+      headlineEl.textContent = 'Perfect!';
+      headlineEl.style.color = '#2ecc71';
+      if (subtitleEl) subtitleEl.textContent = 'You ate everything! 🎉';
+    } else if (gameEndReason === 'quit') {
+      headlineEl.textContent = 'Quit';
+      headlineEl.style.color = '#e8b84b';
+      if (subtitleEl) subtitleEl.textContent = 'You devoured';
+    } else {
+      headlineEl.textContent = "Time's Up!";
+      headlineEl.style.color = '#e8b84b';
+      if (subtitleEl) subtitleEl.textContent = 'You devoured';
+    }
+  }
+
   const finalScoreEl = document.getElementById('finalScore');
   const finalCountEl = document.getElementById('finalCount');
   if (finalScoreEl) finalScoreEl.textContent = pct + '%';
   if (finalCountEl) finalCountEl.textContent = `You swallowed ${score} out of ${totalItems} items`;
+
+  // Only save score if not quit, or save with a 'quit' flag
   saveScore(currentMapId, pct, `${score}/${totalItems}`);
+
   const gameOverEl = document.getElementById('gameOverScreen');
   const hudEl = document.getElementById('hud');
   if (gameOverEl) gameOverEl.style.display = 'flex';
   if (hudEl) hudEl.style.display = 'none';
 }
 
+export function quitGame() {
+  if (!gameRunning) return;
+  gameEndReason = 'quit';
+  endGame();
+}
+
 export function startGame(mapId) {
   currentMapId = mapId || currentMapId;
+  gameEndReason = 'time';
   const startEl = document.getElementById('startScreen');
   const gameOverEl = document.getElementById('gameOverScreen');
   const hudEl = document.getElementById('hud');
