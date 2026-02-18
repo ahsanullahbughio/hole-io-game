@@ -1,0 +1,1247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Map Editor — Hole Game Admin</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@400;600;700;900&display=swap');
+
+  :root {
+    --bg: #080b12;
+    --surface: #0d1220;
+    --surface2: #111827;
+    --border: #1e2d47;
+    --border-bright: #2a4a73;
+    --accent: #00d4ff;
+    --accent2: #ff6b35;
+    --accent3: #00ff99;
+    --text: #c8d8e8;
+    --text-dim: #5a7a9a;
+    --danger: #ff3b5c;
+    --mono: 'Share Tech Mono', monospace;
+    --display: 'Barlow Condensed', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── HEADER ── */
+  #header {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 12px 20px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border-bright);
+    flex-shrink: 0;
+    position: relative;
+    z-index: 100;
+  }
+  #header::before {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent), var(--accent2), transparent);
+  }
+  .header-logo {
+    font-family: var(--display);
+    font-weight: 900;
+    font-size: 22px;
+    color: var(--accent);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+  }
+  .header-logo span { color: var(--accent2); }
+  .header-sep { width: 1px; height: 28px; background: var(--border-bright); }
+  #mapSelect {
+    background: var(--surface2);
+    border: 1px solid var(--border-bright);
+    color: var(--text);
+    padding: 6px 12px;
+    font-family: var(--mono);
+    font-size: 13px;
+    border-radius: 4px;
+    cursor: pointer;
+    min-width: 180px;
+  }
+  #mapSelect:focus { outline: none; border-color: var(--accent); }
+  .hbtn {
+    padding: 7px 18px;
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: 14px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 1px solid;
+  }
+  .hbtn-primary {
+    background: linear-gradient(135deg, #005580, #003366);
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+  .hbtn-primary:hover { background: linear-gradient(135deg, #007ab8, #005580); box-shadow: 0 0 12px rgba(0,212,255,0.4); }
+  .hbtn-success {
+    background: linear-gradient(135deg, #006633, #004422);
+    color: var(--accent3);
+    border-color: var(--accent3);
+  }
+  .hbtn-success:hover { box-shadow: 0 0 12px rgba(0,255,153,0.4); }
+  .hbtn-danger {
+    background: linear-gradient(135deg, #6b0020, #44001a);
+    color: var(--danger);
+    border-color: var(--danger);
+  }
+  .hbtn-danger:hover { box-shadow: 0 0 12px rgba(255,59,92,0.4); }
+  .hbtn-warn {
+    background: linear-gradient(135deg, #6b3500, #442200);
+    color: var(--accent2);
+    border-color: var(--accent2);
+  }
+  .hbtn-warn:hover { box-shadow: 0 0 12px rgba(255,107,53,0.4); }
+  .header-right { margin-left: auto; display: flex; gap: 10px; align-items: center; }
+  .status-pill {
+    padding: 4px 10px;
+    font-size: 11px;
+    border-radius: 20px;
+    border: 1px solid;
+  }
+  #statusPill {
+    border-color: var(--border-bright);
+    color: var(--text-dim);
+  }
+  #statusPill.saved { border-color: var(--accent3); color: var(--accent3); }
+  #statusPill.unsaved { border-color: var(--accent2); color: var(--accent2); }
+
+  /* ── MAIN LAYOUT ── */
+  #main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* ── LEFT PANEL: Zone palette + item palette ── */
+  #leftPanel {
+    width: 220px;
+    flex-shrink: 0;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .panel-section {
+    padding: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .panel-label {
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 10px;
+  }
+  .zone-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+  .zone-btn {
+    padding: 8px 6px;
+    font-size: 11px;
+    font-family: var(--mono);
+    border: 1px solid transparent;
+    border-radius: 4px;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.15s;
+    color: #fff;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+  }
+  .zone-btn:hover { transform: scale(1.04); border-color: rgba(255,255,255,0.3); }
+  .zone-btn.active { border-color: #fff !important; box-shadow: 0 0 8px rgba(255,255,255,0.3); transform: scale(1.05); }
+
+  /* Item palette */
+  #itemList {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-bright) transparent;
+  }
+  .item-section-label {
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    padding: 6px 4px 4px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 6px;
+  }
+  .item-chip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    cursor: pointer;
+    margin-bottom: 4px;
+    transition: all 0.15s;
+    font-size: 12px;
+    background: var(--surface2);
+  }
+  .item-chip:hover { border-color: var(--accent); color: var(--accent); background: rgba(0,212,255,0.06); }
+  .item-chip.active { border-color: var(--accent3); color: var(--accent3); background: rgba(0,255,153,0.08); }
+  .item-emoji { font-size: 16px; }
+  .item-info { flex: 1; }
+  .item-name { font-size: 11px; font-weight: bold; }
+  .item-meta { font-size: 10px; color: var(--text-dim); }
+  .item-tier-badge {
+    font-size: 9px;
+    padding: 2px 5px;
+    border-radius: 3px;
+    background: rgba(0,0,0,0.4);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+  }
+
+  /* ── CENTER: Map canvas ── */
+  #canvasArea {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--bg);
+    position: relative;
+  }
+  #canvasToolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 14px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .toolbar-label { font-size: 12px; color: var(--text-dim); }
+  .tool-btn {
+    padding: 5px 12px;
+    font-family: var(--mono);
+    font-size: 12px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .tool-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .tool-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(0,212,255,0.1); }
+  .tool-btn.erase-btn.active { border-color: var(--danger); color: var(--danger); background: rgba(255,59,92,0.1); }
+  #brushSize {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 4px 8px;
+    font-family: var(--mono);
+    font-size: 12px;
+    border-radius: 4px;
+    width: 50px;
+  }
+  #canvasWrapper {
+    flex: 1;
+    overflow: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-bright) transparent;
+  }
+  #mapCanvas {
+    image-rendering: pixelated;
+    cursor: crosshair;
+    border: 2px solid var(--border-bright);
+    box-shadow: 0 0 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(0,212,255,0.1);
+    background: #1a1a1a;
+  }
+  /* Grid overlay hint */
+  #mapCanvas:hover { border-color: var(--accent); }
+
+  /* ── RIGHT PANEL: Map settings ── */
+  #rightPanel {
+    width: 250px;
+    flex-shrink: 0;
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-bright) transparent;
+    padding: 14px;
+    gap: 16px;
+  }
+  .setting-group { display: flex; flex-direction: column; gap: 6px; }
+  .setting-label {
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+  .setting-input {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 8px 10px;
+    font-family: var(--mono);
+    font-size: 13px;
+    border-radius: 4px;
+    width: 100%;
+    transition: border-color 0.15s;
+  }
+  .setting-input:focus { outline: none; border-color: var(--accent); }
+  .color-row { display: flex; gap: 8px; align-items: center; }
+  .color-row input[type="color"] {
+    width: 36px; height: 36px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    cursor: pointer;
+    background: none;
+    padding: 2px;
+  }
+  .zone-colors-grid { display: flex; flex-direction: column; gap: 6px; }
+  .zone-color-row { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+  .zone-color-row input[type="color"] {
+    width: 28px; height: 28px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    cursor: pointer;
+    background: none;
+    padding: 1px;
+    flex-shrink: 0;
+  }
+  .zone-color-label { flex: 1; font-size: 11px; color: var(--text-dim); }
+
+  /* Spawn counts */
+  #spawnCounts { display: flex; flex-direction: column; gap: 4px; max-height: 200px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--border-bright) transparent; }
+  .spawn-row { display: flex; align-items: center; gap: 6px; font-size: 11px; }
+  .spawn-emoji { font-size: 14px; width: 20px; }
+  .spawn-label { flex: 1; color: var(--text-dim); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .spawn-input {
+    width: 44px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 3px 6px;
+    font-family: var(--mono);
+    font-size: 11px;
+    border-radius: 3px;
+    text-align: center;
+  }
+  .spawn-input:focus { outline: none; border-color: var(--accent); }
+
+  /* Map preview mini */
+  #previewCanvas {
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    image-rendering: pixelated;
+    background: #111;
+  }
+
+  /* Modal */
+  .modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.8);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(4px);
+  }
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border-bright);
+    border-radius: 8px;
+    padding: 28px;
+    min-width: 360px;
+    max-width: 480px;
+    box-shadow: 0 0 60px rgba(0,0,0,0.8);
+    position: relative;
+  }
+  .modal::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; height: 3px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    border-radius: 8px 8px 0 0;
+  }
+  .modal h2 {
+    font-family: var(--display);
+    font-weight: 900;
+    font-size: 20px;
+    letter-spacing: 2px;
+    color: var(--accent);
+    margin-bottom: 18px;
+  }
+  .modal-body { display: flex; flex-direction: column; gap: 12px; }
+  .modal-footer { display: flex; gap: 10px; margin-top: 20px; justify-content: flex-end; }
+  .modal-input {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 10px 12px;
+    font-family: var(--mono);
+    font-size: 14px;
+    border-radius: 4px;
+    width: 100%;
+  }
+  .modal-input:focus { outline: none; border-color: var(--accent); }
+  .modal-label { font-size: 12px; color: var(--text-dim); margin-bottom: 4px; }
+
+  /* Map list in modal */
+  .map-list-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    background: var(--surface2);
+    cursor: pointer;
+    transition: all 0.15s;
+    margin-bottom: 6px;
+  }
+  .map-list-item:hover { border-color: var(--accent); background: rgba(0,212,255,0.05); }
+  .map-list-item.built-in { opacity: 0.6; cursor: default; }
+  .map-list-item.built-in:hover { border-color: var(--border); background: var(--surface2); }
+  .map-list-name { flex: 1; font-family: var(--display); font-weight: 700; font-size: 15px; }
+  .map-list-badge {
+    font-size: 10px; padding: 2px 7px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+  }
+  .map-list-badge.custom { border-color: var(--accent2); color: var(--accent2); }
+
+  /* Toast notifications */
+  #toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: var(--surface);
+    border: 1px solid var(--border-bright);
+    color: var(--text);
+    padding: 12px 24px;
+    border-radius: 6px;
+    font-family: var(--mono);
+    font-size: 13px;
+    z-index: 2000;
+    transition: transform 0.3s ease;
+    pointer-events: none;
+    white-space: nowrap;
+  }
+  #toast.show { transform: translateX(-50%) translateY(0); }
+  #toast.success { border-color: var(--accent3); color: var(--accent3); }
+  #toast.error { border-color: var(--danger); color: var(--danger); }
+
+  /* Info bar at bottom */
+  #infoBar {
+    display: flex;
+    gap: 20px;
+    align-items: center;
+    padding: 5px 14px;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--text-dim);
+    flex-shrink: 0;
+  }
+  #infoBar span { color: var(--text); }
+  #coordinateDisplay { margin-left: auto; font-family: var(--mono); }
+
+  .divider { height: 1px; background: var(--border); margin: 4px 0; }
+
+  /* Hide scrollbar style webkit */
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border-bright); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div id="header">
+  <div class="header-logo">Hole Game <span>Admin</span></div>
+  <div class="header-sep"></div>
+  <select id="mapSelect">
+    <option value="">— Select Map —</option>
+  </select>
+  <button class="hbtn hbtn-primary" onclick="openNewMapModal()">+ New Map</button>
+  <button class="hbtn hbtn-primary" onclick="openLoadMapModal()">Load Map</button>
+  <div class="header-right">
+    <div class="status-pill" id="statusPill">No map loaded</div>
+    <button class="hbtn hbtn-warn" onclick="clearMap()">Clear Map</button>
+    <button class="hbtn hbtn-success" onclick="saveMap()">💾 Save Map</button>
+    <button class="hbtn hbtn-danger" onclick="deleteCurrentMap()">🗑 Delete</button>
+    <a href="index.html" class="hbtn hbtn-primary" style="text-decoration:none;">← Back to Game</a>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div id="main">
+
+  <!-- LEFT PANEL -->
+  <div id="leftPanel">
+    <!-- Mode selector -->
+    <div class="panel-section">
+      <div class="panel-label">Edit Mode</div>
+      <div style="display:flex; gap:6px;">
+        <button class="tool-btn active" id="modeTilePaint" onclick="setMode('tile')">Tiles</button>
+        <button class="tool-btn" id="modeItems" onclick="setMode('items')">Items</button>
+      </div>
+    </div>
+
+    <!-- Zone palette (visible in tile mode) -->
+    <div class="panel-section" id="zonePalette">
+      <div class="panel-label">Zone / Tile</div>
+      <div class="zone-grid" id="zoneGrid"></div>
+    </div>
+
+    <!-- Item palette (visible in items mode) -->
+    <div id="itemPaletteSection" style="display:none; flex-direction:column; flex:1; overflow:hidden;">
+      <div class="panel-section">
+        <div class="panel-label">Map Theme for Items</div>
+        <select id="itemThemeSelect" class="setting-input" onchange="buildItemPalette()">
+          <option value="souq">Souq Items</option>
+          <option value="ny">NYC Items</option>
+        </select>
+      </div>
+      <div id="itemList"></div>
+    </div>
+  </div>
+
+  <!-- CENTER CANVAS -->
+  <div id="canvasArea">
+    <div id="canvasToolbar">
+      <span class="toolbar-label">Tool:</span>
+      <button class="tool-btn active" id="toolPaint" onclick="setTool('paint')">🖌 Paint</button>
+      <button class="tool-btn erase-btn" id="toolErase" onclick="setTool('erase')">◻ Erase</button>
+      <div class="header-sep"></div>
+      <span class="toolbar-label">Brush:</span>
+      <input id="brushSize" type="number" min="1" max="8" value="1" title="Brush size">
+      <div class="header-sep"></div>
+      <button class="tool-btn" onclick="zoomIn()">＋ Zoom</button>
+      <button class="tool-btn" onclick="zoomOut()">－ Zoom</button>
+      <button class="tool-btn" onclick="resetZoom()">Reset</button>
+      <div class="header-sep"></div>
+      <button class="tool-btn" onclick="fillZone()">Fill All</button>
+      <button class="tool-btn" onclick="undoAction()">↩ Undo</button>
+    </div>
+    <div id="canvasWrapper">
+      <canvas id="mapCanvas"></canvas>
+    </div>
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div id="rightPanel">
+    <div class="panel-label">Map Preview</div>
+    <canvas id="previewCanvas" width="200" height="200"></canvas>
+
+    <div class="divider"></div>
+    <div class="panel-label">Map Settings</div>
+
+    <div class="setting-group">
+      <div class="setting-label">Map Name</div>
+      <input class="setting-input" id="mapName" type="text" placeholder="My Custom Map" oninput="markUnsaved()">
+    </div>
+    <div class="setting-group">
+      <div class="setting-label">Subtitle</div>
+      <input class="setting-input" id="mapSubtitle" type="text" placeholder="Eat everything!" oninput="markUnsaved()">
+    </div>
+    <div class="setting-group">
+      <div class="setting-label">Sky / Fog Color</div>
+      <div class="color-row">
+        <input type="color" id="skyColor" value="#87CEEB" oninput="markUnsaved()">
+        <span style="font-size:12px; color:var(--text-dim);">Sky & Fog</span>
+      </div>
+    </div>
+    <div class="setting-group">
+      <div class="setting-label">Item Theme</div>
+      <select id="mapItemTheme" class="setting-input" onchange="markUnsaved()">
+        <option value="souq">Souq (default)</option>
+        <option value="ny">New York City</option>
+      </select>
+    </div>
+
+    <div class="divider"></div>
+    <div class="panel-label">Zone Colors</div>
+    <div class="zone-colors-grid" id="zoneColorsGrid"></div>
+
+    <div class="divider"></div>
+    <div class="panel-label">Spawn Counts</div>
+    <div id="spawnCounts"></div>
+  </div>
+</div>
+
+<!-- INFO BAR -->
+<div id="infoBar">
+  <div>Mode: <span id="modeLabel">Tile Paint</span></div>
+  <div>Tool: <span id="toolLabel">Paint</span></div>
+  <div>Zone: <span id="zoneLabel">-</span></div>
+  <div>Tiles: <span id="tileCountLabel">40×40</span></div>
+  <div id="coordinateDisplay">x:— y:—</div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<!-- Modals inserted dynamically -->
+<div id="modals"></div>
+
+<script type="module">
+import {
+  Z_ROAD, Z_SAND, Z_MARKET, Z_SPICE, Z_TEXTILE, Z_FOOD, Z_PLAZA, Z_PARKING,
+  ZONE_NAMES, ZONE_COLORS_SOUQ, ZONE_COLORS_NY,
+  TYPES_SOUQ, SPAWN_SOUQ, TYPES_NY, SPAWN_NY, ALL_ITEM_TYPES,
+} from './js/constants.js';
+import {
+  loadCustomMaps, saveCustomMap, deleteCustomMap, getAllMaps,
+  buildMapSouq, buildMapNY,
+} from './js/maps.js';
+
+// ====== STATE ======
+const TILES_N = 40;
+let tileMap = [];        // [x][y] zone values
+let currentMapId = null;
+let mapMeta = { name: '', subtitle: '', skyColor: '#87CEEB', itemTheme: 'souq' };
+let zoneColors = { ...ZONE_COLORS_SOUQ };
+let spawnData = { ...SPAWN_SOUQ };
+let currentItemTypes = TYPES_SOUQ;
+
+let editMode = 'tile';   // 'tile' | 'items'
+let currentZone = Z_MARKET;
+let currentTool = 'paint';
+let currentItem = null;
+
+let cellSize = 14;       // px per tile on canvas
+let painting = false;
+let undoStack = [];
+
+// ====== ZONE DEFS ======
+const ZONES = [
+  { id: Z_ROAD,    label: 'Road',     color: '#5A5550' },
+  { id: Z_SAND,    label: 'Sand',     color: '#E8D5A0' },
+  { id: Z_MARKET,  label: 'Market',   color: '#C4956A' },
+  { id: Z_SPICE,   label: 'Spice',    color: '#D4652A' },
+  { id: Z_TEXTILE, label: 'Textile',  color: '#6B4E9B' },
+  { id: Z_FOOD,    label: 'Food',     color: '#7BA23F' },
+  { id: Z_PLAZA,   label: 'Plaza',    color: '#DEB055' },
+  { id: Z_PARKING, label: 'Parking',  color: '#8A8580' },
+];
+
+// ====== CANVAS SETUP ======
+const canvas = document.getElementById('mapCanvas');
+const ctx = canvas.getContext('2d');
+const previewCanvas = document.getElementById('previewCanvas');
+const previewCtx = previewCanvas.getContext('2d');
+
+function resizeCanvas() {
+  canvas.width = TILES_N * cellSize;
+  canvas.height = TILES_N * cellSize;
+  renderCanvas();
+}
+
+// ====== INIT BLANK MAP ======
+function newBlankMap() {
+  tileMap = [];
+  for (let x = 0; x < TILES_N; x++) {
+    tileMap[x] = [];
+    for (let y = 0; y < TILES_N; y++) tileMap[x][y] = Z_SAND;
+  }
+}
+
+// ====== RENDER ======
+function renderCanvas() {
+  if (!tileMap.length) return;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const cs = cellSize;
+  for (let x = 0; x < TILES_N; x++) {
+    for (let y = 0; y < TILES_N; y++) {
+      const z = tileMap[x][y];
+      ctx.fillStyle = zoneColors[z] || '#333';
+      ctx.fillRect(x * cs, y * cs, cs, cs);
+    }
+  }
+  // Grid lines (only when big enough)
+  if (cs >= 8) {
+    ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+    ctx.lineWidth = 0.5;
+    for (let i = 0; i <= TILES_N; i++) {
+      ctx.beginPath(); ctx.moveTo(i * cs, 0); ctx.lineTo(i * cs, canvas.height); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, i * cs); ctx.lineTo(canvas.width, i * cs); ctx.stroke();
+    }
+  }
+  renderPreview();
+  updateTileCount();
+}
+
+function renderPreview() {
+  if (!tileMap.length) return;
+  const pw = previewCanvas.width, ph = previewCanvas.height;
+  previewCtx.clearRect(0, 0, pw, ph);
+  const sx = pw / TILES_N, sy = ph / TILES_N;
+  for (let x = 0; x < TILES_N; x++) {
+    for (let y = 0; y < TILES_N; y++) {
+      previewCtx.fillStyle = zoneColors[tileMap[x][y]] || '#333';
+      previewCtx.fillRect(x * sx, y * sy, sx + 0.5, sy + 0.5);
+    }
+  }
+}
+
+function updateTileCount() {
+  const counts = {};
+  for (let x = 0; x < TILES_N; x++)
+    for (let y = 0; y < TILES_N; y++) {
+      const z = tileMap[x][y];
+      counts[z] = (counts[z] || 0) + 1;
+    }
+  document.getElementById('tileCountLabel').textContent = `${TILES_N}×${TILES_N}`;
+}
+
+// ====== PAINTING ======
+function getTileFromEvent(e) {
+  const rect = canvas.getBoundingClientRect();
+  const sx = canvas.width / rect.width;
+  const sy = canvas.height / rect.height;
+  const cx = (e.clientX - rect.left) * sx;
+  const cy = (e.clientY - rect.top) * sy;
+  return {
+    x: Math.floor(cx / cellSize),
+    y: Math.floor(cy / cellSize),
+  };
+}
+
+function paintAt(tx, ty) {
+  if (!tileMap.length) return;
+  const bs = parseInt(document.getElementById('brushSize').value) || 1;
+  const half = Math.floor(bs / 2);
+  for (let dx = -half; dx <= half; dx++) {
+    for (let dy = -half; dy <= half; dy++) {
+      const px = tx + dx, py = ty + dy;
+      if (px < 0 || px >= TILES_N || py < 0 || py >= TILES_N) continue;
+      if (currentTool === 'erase') {
+        tileMap[px][py] = Z_SAND;
+      } else {
+        tileMap[px][py] = currentZone;
+      }
+    }
+  }
+  renderCanvas();
+  markUnsaved();
+}
+
+// Push undo snapshot
+function pushUndo() {
+  const snap = tileMap.map(col => [...col]);
+  undoStack.push(snap);
+  if (undoStack.length > 40) undoStack.shift();
+}
+
+canvas.addEventListener('mousedown', e => {
+  if (editMode !== 'tile') return;
+  e.preventDefault();
+  pushUndo();
+  painting = true;
+  const { x, y } = getTileFromEvent(e);
+  paintAt(x, y);
+});
+canvas.addEventListener('mousemove', e => {
+  if (editMode !== 'tile') return;
+  const { x, y } = getTileFromEvent(e);
+  document.getElementById('coordinateDisplay').textContent = `x:${x} y:${y}`;
+  if (!painting) return;
+  paintAt(x, y);
+});
+canvas.addEventListener('mouseup', () => { painting = false; });
+canvas.addEventListener('mouseleave', () => { painting = false; });
+// Prevent context menu
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+// ====== UNDO ======
+window.undoAction = function () {
+  if (!undoStack.length) { showToast('Nothing to undo', 'error'); return; }
+  tileMap = undoStack.pop();
+  renderCanvas();
+  markUnsaved();
+  showToast('Undo!', 'success');
+};
+
+// ====== FILL ======
+window.fillZone = function () {
+  if (!tileMap.length) return;
+  pushUndo();
+  for (let x = 0; x < TILES_N; x++)
+    for (let y = 0; y < TILES_N; y++)
+      tileMap[x][y] = currentZone;
+  renderCanvas();
+  markUnsaved();
+};
+
+// ====== ZOOM ======
+window.zoomIn = function () {
+  cellSize = Math.min(32, cellSize + 2);
+  resizeCanvas();
+};
+window.zoomOut = function () {
+  cellSize = Math.max(4, cellSize - 2);
+  resizeCanvas();
+};
+window.resetZoom = function () {
+  cellSize = 14;
+  resizeCanvas();
+};
+
+// ====== MODE / TOOL / ZONE ======
+window.setMode = function (mode) {
+  editMode = mode;
+  document.getElementById('modeTilePaint').classList.toggle('active', mode === 'tile');
+  document.getElementById('modeItems').classList.toggle('active', mode === 'items');
+  document.getElementById('zonePalette').style.display = mode === 'tile' ? 'block' : 'none';
+  document.getElementById('itemPaletteSection').style.display = mode === 'items' ? 'flex' : 'none';
+  document.getElementById('modeLabel').textContent = mode === 'tile' ? 'Tile Paint' : 'Items';
+  if (mode === 'items') buildItemPalette();
+};
+
+window.setTool = function (tool) {
+  currentTool = tool;
+  document.getElementById('toolPaint').classList.toggle('active', tool === 'paint');
+  document.getElementById('toolErase').classList.toggle('active', tool === 'erase');
+  document.getElementById('toolLabel').textContent = tool === 'paint' ? 'Paint' : 'Erase';
+};
+
+function setZone(z) {
+  currentZone = z;
+  document.querySelectorAll('.zone-btn').forEach(b => b.classList.remove('active'));
+  const btn = document.querySelector(`.zone-btn[data-zone="${z}"]`);
+  if (btn) btn.classList.add('active');
+  const zone = ZONES.find(zn => zn.id === z);
+  document.getElementById('zoneLabel').textContent = zone ? zone.label : '-';
+}
+
+// ====== BUILD ZONE GRID ======
+function buildZoneGrid() {
+  const grid = document.getElementById('zoneGrid');
+  grid.innerHTML = '';
+  ZONES.forEach(z => {
+    const btn = document.createElement('button');
+    btn.className = 'zone-btn';
+    btn.dataset.zone = z.id;
+    btn.textContent = z.label;
+    btn.style.background = z.color;
+    btn.style.borderColor = 'transparent';
+    if (z.id === currentZone) btn.classList.add('active');
+    btn.onclick = () => setZone(z.id);
+    grid.appendChild(btn);
+  });
+}
+
+// ====== BUILD ITEM PALETTE ======
+window.buildItemPalette = function () {
+  const theme = document.getElementById('itemThemeSelect').value;
+  const types = theme === 'ny' ? TYPES_NY : TYPES_SOUQ;
+  currentItemTypes = types;
+  const list = document.getElementById('itemList');
+  list.innerHTML = '';
+
+  const tiers = [1, 2, 3, 4];
+  tiers.forEach(tier => {
+    const tierItems = types.filter(t => t.tier === tier);
+    if (!tierItems.length) return;
+    const label = document.createElement('div');
+    label.className = 'item-section-label';
+    label.textContent = `Tier ${tier}`;
+    list.appendChild(label);
+    tierItems.forEach(type => {
+      const chip = document.createElement('div');
+      chip.className = 'item-chip';
+      chip.dataset.id = type.id;
+      chip.innerHTML = `
+        <span class="item-emoji">${type.emoji || '📦'}</span>
+        <div class="item-info">
+          <div class="item-name">${type.label || type.id}</div>
+          <div class="item-meta">r:${type.radius} · ${type.zone}${type.npc ? ' · NPC' : ''}${type.isBonus ? ' · BONUS' : ''}</div>
+        </div>
+        <span class="item-tier-badge">T${tier}</span>
+      `;
+      chip.onclick = () => selectItem(type.id, chip);
+      list.appendChild(chip);
+    });
+  });
+};
+
+function selectItem(id, chip) {
+  currentItem = id;
+  document.querySelectorAll('.item-chip').forEach(c => c.classList.remove('active'));
+  chip.classList.add('active');
+}
+
+// ====== ZONE COLORS PANEL ======
+function buildZoneColorsPanel() {
+  const grid = document.getElementById('zoneColorsGrid');
+  grid.innerHTML = '';
+  ZONES.forEach(z => {
+    const row = document.createElement('div');
+    row.className = 'zone-color-row';
+    const col = zoneColors[z.id] || '#888';
+    row.innerHTML = `
+      <input type="color" value="${col}" data-zone="${z.id}" title="${z.label}">
+      <span class="zone-color-label">${z.label}</span>
+    `;
+    row.querySelector('input').addEventListener('input', e => {
+      zoneColors[z.id] = e.target.value;
+      renderCanvas();
+      markUnsaved();
+    });
+    grid.appendChild(row);
+  });
+}
+
+// ====== SPAWN COUNTS PANEL ======
+function buildSpawnPanel() {
+  const theme = document.getElementById('mapItemTheme').value;
+  const types = theme === 'ny' ? TYPES_NY : TYPES_SOUQ;
+  const defaultSpawn = theme === 'ny' ? SPAWN_NY : SPAWN_SOUQ;
+  const container = document.getElementById('spawnCounts');
+  container.innerHTML = '';
+  types.forEach(type => {
+    const row = document.createElement('div');
+    row.className = 'spawn-row';
+    const val = spawnData[type.id] ?? defaultSpawn[type.id] ?? 4;
+    row.innerHTML = `
+      <span class="spawn-emoji">${type.emoji || '📦'}</span>
+      <span class="spawn-label">${type.label || type.id}</span>
+      <input class="spawn-input" type="number" min="0" max="30" value="${val}" data-id="${type.id}">
+    `;
+    row.querySelector('input').addEventListener('input', e => {
+      spawnData[type.id] = parseInt(e.target.value) || 0;
+      markUnsaved();
+    });
+    container.appendChild(row);
+  });
+}
+
+document.getElementById('mapItemTheme').addEventListener('change', () => {
+  buildSpawnPanel();
+  markUnsaved();
+});
+
+// ====== MAP SELECT DROPDOWN ======
+function buildMapSelect() {
+  const sel = document.getElementById('mapSelect');
+  const prevVal = sel.value;
+  const allMaps = getAllMaps();
+  sel.innerHTML = '<option value="">— Select Map —</option>';
+  Object.values(allMaps).forEach(map => {
+    const opt = document.createElement('option');
+    opt.value = map.id;
+    opt.textContent = map.name + (map.builtIn ? ' (built-in)' : '');
+    sel.appendChild(opt);
+  });
+  if (currentMapId) sel.value = currentMapId;
+}
+
+document.getElementById('mapSelect').addEventListener('change', e => {
+  const id = e.target.value;
+  if (!id) return;
+  loadMapById(id);
+});
+
+// ====== LOAD MAP ======
+function loadMapById(id) {
+  const allMaps = getAllMaps();
+  const map = allMaps[id];
+  if (!map) return;
+  currentMapId = id;
+
+  // Build tileMap
+  const builtTileMap = map.buildMap();
+  tileMap = builtTileMap.map(col => [...col]);
+
+  // Load meta
+  mapMeta = {
+    name: map.name || '',
+    subtitle: map.subtitle || '',
+    skyColor: map.skyColor || '#87CEEB',
+    itemTheme: map.itemTheme || 'souq',
+  };
+  document.getElementById('mapName').value = mapMeta.name;
+  document.getElementById('mapSubtitle').value = mapMeta.subtitle;
+  document.getElementById('skyColor').value = mapMeta.skyColor;
+  document.getElementById('mapItemTheme').value = mapMeta.itemTheme || 'souq';
+
+  // Zone colors
+  if (map.zoneColors) {
+    zoneColors = { ...map.zoneColors };
+  } else {
+    zoneColors = { ...ZONE_COLORS_SOUQ };
+  }
+
+  // Spawn data
+  const theme = mapMeta.itemTheme || 'souq';
+  const defaultSpawn = theme === 'ny' ? SPAWN_NY : SPAWN_SOUQ;
+  spawnData = { ...(map.spawn || defaultSpawn) };
+
+  buildZoneColorsPanel();
+  buildSpawnPanel();
+  resizeCanvas();
+  renderCanvas();
+  setStatus('saved');
+  document.getElementById('mapSelect').value = id;
+  showToast(`Loaded: ${map.name}`, 'success');
+}
+
+// ====== SAVE MAP ======
+window.saveMap = function () {
+  if (!tileMap.length) { showToast('No map to save!', 'error'); return; }
+
+  // Get values
+  const name = document.getElementById('mapName').value.trim() || 'Untitled Map';
+  const subtitle = document.getElementById('mapSubtitle').value.trim();
+  const skyColor = document.getElementById('skyColor').value;
+  const itemTheme = document.getElementById('mapItemTheme').value;
+
+  // Collect spawn counts
+  const spawnObj = {};
+  document.querySelectorAll('.spawn-input').forEach(inp => {
+    spawnObj[inp.dataset.id] = parseInt(inp.value) || 0;
+  });
+
+  // Collect zone colors
+  const zc = {};
+  document.querySelectorAll('.zone-color-row input[type="color"]').forEach(inp => {
+    zc[inp.dataset.zone] = inp.value;
+  });
+
+  // Generate ID if new
+  if (!currentMapId || currentMapId === 'souq' || currentMapId === 'newyork') {
+    currentMapId = 'custom_' + Date.now();
+  }
+
+  const mapData = {
+    id: currentMapId,
+    name,
+    subtitle,
+    skyColor,
+    fogColor: skyColor,
+    itemTheme,
+    tileMap: tileMap.map(col => [...col]),
+    spawn: spawnObj,
+    zoneColors: zc,
+    builtIn: false,
+  };
+
+  saveCustomMap(mapData);
+  buildMapSelect();
+  setStatus('saved');
+  showToast(`Saved: ${name}`, 'success');
+};
+
+// ====== DELETE MAP ======
+window.deleteCurrentMap = function () {
+  if (!currentMapId || currentMapId === 'souq' || currentMapId === 'newyork') {
+    showToast('Cannot delete built-in maps', 'error'); return;
+  }
+  if (!confirm(`Delete map "${document.getElementById('mapName').value}"?`)) return;
+  deleteCustomMap(currentMapId);
+  currentMapId = null;
+  newBlankMap();
+  tileMap = [];
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+  document.getElementById('mapName').value = '';
+  document.getElementById('mapSubtitle').value = '';
+  buildMapSelect();
+  setStatus('No map loaded');
+  showToast('Map deleted', 'success');
+};
+
+// ====== CLEAR MAP ======
+window.clearMap = function () {
+  if (!confirm('Clear all tiles to sand?')) return;
+  pushUndo();
+  newBlankMap();
+  renderCanvas();
+  markUnsaved();
+};
+
+// ====== NEW MAP MODAL ======
+window.openNewMapModal = function () {
+  const modal = createModal(`
+    <h2>NEW MAP</h2>
+    <div class="modal-body">
+      <div>
+        <div class="modal-label">Map Name</div>
+        <input class="modal-input" id="newMapName" type="text" placeholder="My Custom Map" value="Custom Map ${Date.now().toString().slice(-4)}">
+      </div>
+      <div>
+        <div class="modal-label">Subtitle</div>
+        <input class="modal-input" id="newMapSubtitle" type="text" placeholder="Eat everything!">
+      </div>
+      <div>
+        <div class="modal-label">Start From</div>
+        <select class="modal-input" id="newMapBase">
+          <option value="blank">Blank (all sand)</option>
+          <option value="souq">Copy Souq layout</option>
+          <option value="newyork">Copy NYC layout</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="hbtn hbtn-danger" onclick="closeModal()">Cancel</button>
+      <button class="hbtn hbtn-success" onclick="createNewMap()">Create Map</button>
+    </div>
+  `);
+};
+
+window.createNewMap = function () {
+  const name = document.getElementById('newMapName').value.trim() || 'Custom Map';
+  const subtitle = document.getElementById('newMapSubtitle').value.trim() || '';
+  const base = document.getElementById('newMapBase').value;
+
+  currentMapId = 'custom_' + Date.now();
+
+  if (base === 'souq') {
+    const builtTileMap = buildMapSouq();
+    tileMap = builtTileMap.map(col => [...col]);
+  } else if (base === 'newyork') {
+    const builtTileMap = buildMapNY();
+    tileMap = builtTileMap.map(col => [...col]);
+  } else {
+    newBlankMap();
+  }
+
+  document.getElementById('mapName').value = name;
+  document.getElementById('mapSubtitle').value = subtitle;
+  document.getElementById('skyColor').value = '#87CEEB';
+  document.getElementById('mapItemTheme').value = 'souq';
+  zoneColors = { ...ZONE_COLORS_SOUQ };
+  spawnData = { ...SPAWN_SOUQ };
+
+  buildZoneColorsPanel();
+  buildSpawnPanel();
+  resizeCanvas();
+  renderCanvas();
+  markUnsaved();
+  closeModal();
+  showToast(`New map "${name}" created`, 'success');
+};
+
+// ====== LOAD MAP MODAL ======
+window.openLoadMapModal = function () {
+  const allMaps = getAllMaps();
+  const items = Object.values(allMaps).map(map => `
+    <div class="map-list-item ${map.builtIn ? 'built-in' : ''}" onclick="${map.builtIn ? '' : `loadFromModal('${map.id}')`}">
+      <div class="map-list-name">${map.name}</div>
+      <div class="map-list-badge ${map.builtIn ? '' : 'custom'}">${map.builtIn ? 'BUILT-IN' : 'CUSTOM'}</div>
+    </div>
+  `).join('');
+
+  createModal(`
+    <h2>LOAD MAP</h2>
+    <div class="modal-body">
+      ${items || '<div style="color:var(--text-dim); font-size:13px;">No custom maps saved yet.</div>'}
+    </div>
+    <div class="modal-footer">
+      <button class="hbtn hbtn-danger" onclick="closeModal()">Cancel</button>
+    </div>
+  `);
+};
+
+window.loadFromModal = function (id) {
+  closeModal();
+  loadMapById(id);
+};
+
+// ====== MODAL HELPERS ======
+function createModal(html) {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'activeModal';
+  overlay.innerHTML = `<div class="modal">${html}</div>`;
+  overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(); });
+  document.getElementById('modals').appendChild(overlay);
+  return overlay;
+}
+
+window.closeModal = function () {
+  const m = document.getElementById('activeModal');
+  if (m) m.remove();
+};
+
+// ====== STATUS ======
+function setStatus(state) {
+  const pill = document.getElementById('statusPill');
+  if (state === 'saved') { pill.textContent = '✓ Saved'; pill.className = 'status-pill saved'; }
+  else if (state === 'unsaved') { pill.textContent = '● Unsaved'; pill.className = 'status-pill unsaved'; }
+  else { pill.textContent = state; pill.className = 'status-pill'; }
+}
+
+window.markUnsaved = function () { setStatus('unsaved'); };
+
+// ====== TOAST ======
+function showToast(msg, type = '') {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.className = 'show' + (type ? ` ${type}` : '');
+  clearTimeout(toast._timeout);
+  toast._timeout = setTimeout(() => { toast.className = ''; }, 2500);
+}
+
+// ====== KEYBOARD SHORTCUTS ======
+window.addEventListener('keydown', e => {
+  if (e.ctrlKey || e.metaKey) {
+    if (e.key === 's') { e.preventDefault(); saveMap(); }
+    if (e.key === 'z') { e.preventDefault(); undoAction(); }
+  }
+  if (!['input', 'select', 'textarea'].includes(e.target.tagName.toLowerCase())) {
+    if (e.key === 'e') setTool('erase');
+    if (e.key === 'p') setTool('paint');
+    if (e.key === 't') setMode('tile');
+    if (e.key === 'i') setMode('items');
+  }
+});
+
+// ====== INIT ======
+buildZoneGrid();
+buildZoneColorsPanel();
+buildSpawnPanel();
+buildItemPalette();
+buildMapSelect();
+setStatus('No map loaded');
+newBlankMap();
+resizeCanvas();
+</script>
+</body>
+</html>
